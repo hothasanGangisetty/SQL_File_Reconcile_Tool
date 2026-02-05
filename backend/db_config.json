@@ -1,0 +1,32 @@
+{
+  "environments": [
+    {
+      "env_name": "QA_Release_1",
+      "instances": [
+        {
+          "server_label": "QA1_Payments_Server",
+          "host": "localhost\\SQLEXPRESS",
+          "default_port": 1433,
+          "databases": ["PayDB", "RiskDB"]
+        },
+        {
+          "server_label": "QA1_User_Server",
+          "host": "localhost\\SQLEXPRESS",
+          "default_port": 1433,
+          "databases": ["UserMaster", "AuthDB"]
+        }
+      ]
+    },
+    {
+      "env_name": "UAT_Phase_2",
+      "instances": [
+        {
+          "server_label": "UAT_Main_Server",
+          "host": "localhost\\SQLEXPRESS",
+          "default_port": 1433,
+          "databases": ["UAT_Core", "UAT_Reporting"]
+        }
+      ]
+    }
+  ]
+}
