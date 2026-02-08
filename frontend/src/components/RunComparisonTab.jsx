@@ -43,12 +43,15 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
             setResultId(result_id);
             setSummary(sum);
 
-            log(`Comparison complete!`, 'success');
-            log(`SQL Rows: ${sum.total_sql_rows}  |  File Rows: ${sum.total_file_rows}`, 'info');
+            log(`Comparison complete!  [${sum.comparison_mode} mode, ${sum.elapsed_seconds}s]`, 'success');
+            log(`SQL Rows: ${sum.total_sql_rows}  |  File Rows: ${sum.total_file_rows}  |  Matched: ${sum.matched_rows}`, 'info');
             log(`Mismatched: ${sum.mismatches}  |  Missing: ${sum.only_on_sql}  |  Extra: ${sum.only_on_file}`, sum.mismatches + sum.only_on_sql + sum.only_on_file > 0 ? 'warn' : 'success');
 
+            if (sum.pairing_skipped) {
+                log('⚠ Unmatched set too large for similarity pairing. Select key columns for best accuracy.', 'warn');
+            }
             if (sum.mismatches + sum.only_on_sql + sum.only_on_file === 0) {
-                log('✅ No discrepancies — data matches perfectly!', 'success');
+                log('✅ No discrepancies -- data matches perfectly!', 'success');
             }
 
         } catch (err) {
@@ -198,7 +201,7 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
                     <h3 className="font-bold text-lg text-slate-700 mb-1">Ready to Compare</h3>
                     <p className="text-sm text-gray-500 mb-4">
                         {mappedPairs.length} columns mapped
-                        {mappingState.keys.length > 0 ? `, ${mappingState.keys.length} key(s) selected` : ' (sequential mode)'}
+                        {mappingState.keys.length > 0 ? `, ${mappingState.keys.length} key(s) selected` : ' (Smart Fingerprint mode)'}
                     </p>
                     <button
                         onClick={handleRun}
@@ -228,8 +231,21 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
     // ---- RESULTS VIEW ----
     return (
         <div className="p-4 space-y-3">
+            {/* Mode + Timing Bar */}
+            <div className="flex items-center justify-between text-[10px] px-1 mb-1">
+                <span className="font-bold text-brand-900 bg-brand-100/60 px-2 py-0.5 rounded">
+                    {summary.comparison_mode} Mode
+                </span>
+                {summary.pairing_skipped && (
+                    <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold">
+                        ⚠ Pairing skipped -- select key columns for best accuracy
+                    </span>
+                )}
+                <span className="text-gray-400">{summary.elapsed_seconds}s</span>
+            </div>
+
             {/* Summary Stats */}
-            <div className="grid grid-cols-5 gap-2 text-center">
+            <div className="grid grid-cols-6 gap-2 text-center">
                 <div className="p-2 bg-brand-100/30 rounded border border-brand-700/20">
                     <div className="text-[10px] text-brand-900 uppercase font-bold">SQL Rows</div>
                     <div className="text-lg font-bold text-brand-900">{summary.total_sql_rows}</div>
@@ -237,6 +253,10 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
                 <div className="p-2 bg-brand-100/50 rounded border border-brand-500/20">
                     <div className="text-[10px] text-brand-700 uppercase font-bold">File Rows</div>
                     <div className="text-lg font-bold text-brand-900">{summary.total_file_rows}</div>
+                </div>
+                <div className="p-2 bg-brand-100/30 rounded border border-brand-300/40">
+                    <div className="text-[10px] text-brand-700 uppercase font-bold">Matched</div>
+                    <div className="text-lg font-bold text-brand-700">{summary.matched_rows}</div>
                 </div>
                 <div className="p-2 bg-orange-50 rounded border border-orange-200">
                     <div className="text-[10px] text-orange-600 uppercase font-bold">Mismatched</div>
@@ -277,7 +297,7 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
                 <div className="bg-brand-100/30 border border-brand-500/30 rounded-lg p-8 text-center">
                     <div>
                         <CheckCircle2 className="w-10 h-10 text-brand-500 mx-auto mb-2" />
-                        <p className="text-brand-900 font-bold text-sm">No discrepancies — data matches perfectly!</p>
+                        <p className="text-brand-900 font-bold text-sm">No discrepancies -- all {summary.matched_rows} rows match perfectly!</p>
                     </div>
                 </div>
             )}
