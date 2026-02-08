@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 import pyodbc
 import pandas as pd
@@ -85,6 +85,11 @@ def preview_sql():
         columns = list(preview_df.columns)
         rows = preview_df.to_dict(orient='records')
         
+        # Include last row for truncated preview display in console
+        last_row = None
+        if len(df) > 5:
+            last_row = df.tail(1).fillna("").to_dict(orient='records')[0]
+        
         # Cache the Query logic? No, we will re-run full query on 'Run Comparison'
         
         conn.close()
@@ -92,7 +97,8 @@ def preview_sql():
             "status": "success",
             "columns": columns,
             "preview_data": rows,
-            "row_count_estimate": len(df) # useful info
+            "row_count_estimate": len(df),
+            "last_row": last_row
         })
 
     except Exception as e:
@@ -318,6 +324,141 @@ def get_results_page():
         "total_pages": (len(df) // size) + 1,
         "has_more": end < len(df)
     })
+
+@app.route('/api/export_excel', methods=['GET'])
+def export_excel():
+    """Generate styled Excel file with color-coded reconciliation results."""
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+
+    result_id = request.args.get('result_id')
+    if not result_id:
+        return jsonify({"error": "Missing result_id"}), 400
+
+    df = load_df('results', result_id)
+    if df is None:
+        return jsonify({"error": "Result cache expired. Run comparison again."}), 404
+
+    df = df.fillna('')
+
+    # ── Color definitions (match web UI) ──
+    header_fill = PatternFill(start_color='334155', end_color='334155', fill_type='solid')
+    header_font = Font(color='FFFFFF', bold=True, size=10)
+    pre_fill = PatternFill(start_color='FEF9C3', end_color='FEF9C3', fill_type='solid')       # yellow-100 (pre/SQL)
+    post_fill = PatternFill(start_color='DCFCE7', end_color='DCFCE7', fill_type='solid')      # green-100 (post/File)
+    mismatch_cell_fill = PatternFill(start_color='FECACA', end_color='FECACA', fill_type='solid')  # red-200 (changed cell)
+    mismatch_font = Font(bold=True, color='7F1D1D')
+    sql_only_fill = PatternFill(start_color='FDE68A', end_color='FDE68A', fill_type='solid')   # amber-200
+    file_only_fill = PatternFill(start_color='FECDD3', end_color='FECDD3', fill_type='solid')  # rose-200
+    section_title_fill = PatternFill(start_color='F3F4F6', end_color='F3F4F6', fill_type='solid')
+    section_font = Font(bold=True, size=11)
+    thin_border = Border(
+        left=Side(style='thin', color='D1D5DB'),
+        right=Side(style='thin', color='D1D5DB'),
+        top=Side(style='thin', color='D1D5DB'),
+        bottom=Side(style='thin', color='D1D5DB')
+    )
+
+    display_cols = [c for c in df.columns if c != '_mismatch_cols']
+
+    # ── Split data by category ──
+    mismatched = df[df['status'] == 'Mismatch']
+    missing_df = df[df['status'] == 'Only in SQL']
+    extra_df = df[df['status'] == 'Only in File']
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Reconciliation Results"
+
+    def write_section(ws, section_df, title, start_row):
+        """Write a section with title, headers, and colored data rows."""
+        # Section title row
+        ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=len(display_cols))
+        cell = ws.cell(row=start_row, column=1, value=title)
+        cell.font = section_font
+        cell.fill = section_title_fill
+        start_row += 1
+
+        # Column headers
+        for ci, col_name in enumerate(display_cols, 1):
+            cell = ws.cell(row=start_row, column=ci, value=col_name)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='center')
+        start_row += 1
+
+        # Data rows
+        for _, row in section_df.iterrows():
+            mismatch_cols = [c.strip() for c in str(row.get('_mismatch_cols', '')).split(',') if c.strip()]
+            status = str(row.get('status', ''))
+            pre_post = str(row.get('pre/post', ''))
+
+            # Determine base row fill color
+            if status == 'Mismatch':
+                base_fill = pre_fill if pre_post == 'pre' else post_fill
+            elif status == 'Only in SQL':
+                base_fill = sql_only_fill
+            elif status == 'Only in File':
+                base_fill = file_only_fill
+            else:
+                base_fill = None
+
+            for ci, col_name in enumerate(display_cols, 1):
+                val = row.get(col_name, '')
+                cell = ws.cell(row=start_row, column=ci, value=str(val))
+                cell.border = thin_border
+
+                if base_fill:
+                    cell.fill = base_fill
+
+                # Highlight mismatched cells with red
+                if col_name in mismatch_cols and status == 'Mismatch':
+                    cell.fill = mismatch_cell_fill
+                    cell.font = mismatch_font
+
+            start_row += 1
+
+        return start_row + 1  # gap between sections
+
+    current_row = 1
+
+    if len(mismatched) > 0:
+        current_row = write_section(ws, mismatched, f"Mismatched Rows ({len(mismatched) // 2})", current_row)
+    if len(missing_df) > 0:
+        current_row = write_section(ws, missing_df, f"Missing from File / SQL Only ({len(missing_df)})", current_row)
+    if len(extra_df) > 0:
+        current_row = write_section(ws, extra_df, f"Extra in File / Not in SQL ({len(extra_df)})", current_row)
+
+    if len(df) == 0:
+        ws.cell(row=1, column=1, value="No discrepancies found - data matches perfectly!")
+        ws.cell(row=1, column=1).font = Font(bold=True, size=12, color='16A34A')
+
+    # Auto-width columns
+    for ci, col_name in enumerate(display_cols, 1):
+        col_letter = get_column_letter(ci)
+        max_len = len(str(col_name))
+        for i, (_, row) in enumerate(df.iterrows()):
+            if i >= 100:  # sample first 100 rows
+                break
+            val_len = len(str(row.get(col_name, '')))
+            if val_len > max_len:
+                max_len = val_len
+        ws.column_dimensions[col_letter].width = min(max_len + 3, 40)
+
+    # Save to memory and return
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'reconciliation_{result_id[:8]}.xlsx'
+    )
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

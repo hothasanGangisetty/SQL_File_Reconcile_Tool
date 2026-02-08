@@ -1,5 +1,66 @@
 import pandas as pd
 import numpy as np
+import re
+from datetime import date, datetime
+
+
+def normalize_series_for_comparison(s):
+    """Normalize a pandas Series values so that equivalent values compare equal.
+    
+    Handles:
+    - datetime.date vs datetime.datetime (2025-11-01 vs 2025-11-01 00:00:00)
+    - String representations of dates with trailing 00:00:00
+    - Numeric precision (1750.0 vs 1750, trailing zeros)
+    - Whitespace trimming
+    - NaN/None placeholders
+    """
+    def norm(val):
+        if val is None or (isinstance(val, float) and np.isnan(val)):
+            return '__NULL__'
+        
+        # Convert to string first
+        s_val = str(val).strip()
+        
+        # Empty / nan / None strings
+        if s_val in ('', 'None', 'nan', 'NaT', 'NaN'):
+            return '__NULL__'
+        
+        # Date/datetime normalization:
+        # Remove trailing " 00:00:00" or " 00:00:00.000000" (midnight time component)
+        s_val = re.sub(r'\s+00:00:00(\.\d+)?$', '', s_val)
+        
+        # Also handle "Sat, 01 Nov 2025 00:00:00 GMT" style dates
+        # Try parsing various date formats and normalize to YYYY-MM-DD
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', s_val):
+            return s_val  # Already clean date
+        
+        # Numeric normalization: remove meaningless trailing zeros
+        # "1750.50" -> "1750.5", "1750.0" -> "1750"
+        try:
+            num = float(s_val)
+            if num == int(num):
+                return str(int(num))
+            else:
+                # Remove trailing zeros: 1750.50 -> 1750.5
+                return f"{num:g}"
+        except (ValueError, OverflowError):
+            pass
+        
+        return s_val
+    
+    return s.map(norm)
+
+
+def _clean_display_value(val):
+    """Clean a value for display — strip midnight timestamps, tidy numbers."""
+    if val is None or (isinstance(val, float) and np.isnan(val)):
+        return ''
+    s = str(val).strip()
+    if s in ('None', 'nan', 'NaT', 'NaN', ''):
+        return ''
+    # Remove trailing midnight: "2025-11-01 00:00:00" -> "2025-11-01"
+    s = re.sub(r'\s+00:00:00(\.\d+)?$', '', s)
+    return s
 
 
 def transform_to_pre_post(diff_df, key_cols, common_cols):
@@ -14,13 +75,15 @@ def transform_to_pre_post(diff_df, key_cols, common_cols):
     for _, row in diff_df.iterrows():
         status = row.get('status', '')
         
-        # Identify which columns have value mismatches
+        # Identify which columns have value mismatches (using same normalization)
         mismatch_cols = []
         if status == 'Mismatch':
             for col in common_cols:
-                s1 = str(row.get(f'{col}_sql', '__NA__')).strip()
-                s2 = str(row.get(f'{col}_file', '__NA__')).strip()
-                if s1 != s2:
+                raw_sql = row.get(f'{col}_sql', '__NA__')
+                raw_file = row.get(f'{col}_file', '__NA__')
+                n1 = normalize_series_for_comparison(pd.Series([raw_sql])).iloc[0]
+                n2 = normalize_series_for_comparison(pd.Series([raw_file])).iloc[0]
+                if n1 != n2:
                     mismatch_cols.append(col)
         
         mismatch_str = ','.join(mismatch_cols)
@@ -29,7 +92,8 @@ def transform_to_pre_post(diff_df, key_cols, common_cols):
         if status in ('Mismatch', 'Only in SQL'):
             pre = {k: row.get(k, '') for k in key_cols}
             for col in common_cols:
-                pre[col] = row.get(f'{col}_sql', row.get(col, ''))
+                raw = row.get(f'{col}_sql', row.get(col, ''))
+                pre[col] = _clean_display_value(raw)
             pre['pre/post'] = 'pre'
             pre['status'] = status
             pre['_mismatch_cols'] = mismatch_str
@@ -39,7 +103,8 @@ def transform_to_pre_post(diff_df, key_cols, common_cols):
         if status in ('Mismatch', 'Only in File'):
             post = {k: row.get(k, '') for k in key_cols}
             for col in common_cols:
-                post[col] = row.get(f'{col}_file', row.get(col, ''))
+                raw = row.get(f'{col}_file', row.get(col, ''))
+                post[col] = _clean_display_value(raw)
             post['pre/post'] = 'post'
             post['status'] = status
             post['_mismatch_cols'] = mismatch_str
@@ -125,29 +190,17 @@ def run_hybrid_comparison(df_sql, df_file, keys=None):
         col_file = f"{col}_file"
         
         # Only compare rows where both exist
-        # We use numpy where to handle NaNs safely if needed, or simple series comparison
-        # (df[col_sql] != df[col_file]) is strict. NaN != NaN in SQL logic, but in Pandas NaN==NaN usually (requires careful handling).
-        # Let's assume strict equality including NaNs.
-        
-        # Fill NaNs with a placeholder for comparison to avoid NaN != NaN issues? 
-        # Or use a dedicated comparator
-        
-        # Vectorized comparison:
-        # condition: (both exist) AND (values not equal)
         mask_both = merged_df['_merge'] == 'both'
         
-        # Convert to string for safer comparison of mixed types, or keep raw
-        # Using .fillna to handle nulls equality
-        s1 = merged_df.loc[mask_both, col_sql].fillna('__NULL__')
-        s2 = merged_df.loc[mask_both, col_file].fillna('__NULL__')
+        # Normalize both sides for smart comparison
+        # This handles: date vs datetime, numeric precision, whitespace, NaN
+        s1 = normalize_series_for_comparison(merged_df.loc[mask_both, col_sql])
+        s2 = normalize_series_for_comparison(merged_df.loc[mask_both, col_file])
         
         mask_diff = s1 != s2
         
         # Mark the global mismatch row
         merged_df.loc[mask_both & mask_diff, 'has_mismatch'] = True
-        
-        # Optional: We could create a specific 'diff_col' to highlight WHICH cell changed
-        # merged_df[f'{col}_is_diff'] = mask_both & mask_diff
 
     # 4. Filter Results for Display
     # User wants: "Only display rows where _pre != _post (Mismatches) or NaN (Missing)."

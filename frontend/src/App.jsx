@@ -1,104 +1,206 @@
-import React, { useState } from 'react';
-import ConnectionPanel from './components/ConnectionPanel';
-import DataIngestPanel from './components/DataIngestPanel';
-import ValidationPanel from './components/ValidationPanel';
-import ResultsPanel from './components/ResultsPanel';
-import { LayoutDashboard } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ConsoleProvider, useConsole } from './context/ConsoleContext';
+import Sidebar from './components/Sidebar';
+import ConnectionBar from './components/ConnectionBar';
+import ConsolePanel from './components/ConsolePanel';
+import SqlQueryTab from './components/SqlQueryTab';
+import FileUploadTab from './components/FileUploadTab';
+import KeysMappingTab from './components/KeysMappingTab';
+import RunComparisonTab from './components/RunComparisonTab';
 
-function App() {
-  const [step, setStep] = useState(1);
-  
-  // State Store
-  const [connectionDetails, setConnectionDetails] = useState({ server: '', database: '' });
-  const [ingestData, setIngestData] = useState({ query: '', fileId: '', sqlColumns: [], fileColumns: [] });
-  const [resultDetails, setResultDetails] = useState({ id: '', summary: {} });
+const TABS = [
+    { id: 'sql-query',      label: 'SQL Query' },
+    { id: 'file-upload',    label: 'File Upload' },
+    { id: 'keys-mapping',   label: 'Keys Mapping' },
+    { id: 'run-comparison', label: 'Run Comparison' },
+];
 
-  // Navigation Handlers
-  const handleConnected = (details) => {
-    setConnectionDetails(details);
-    setStep(2);
-  };
+// ───── Inner App (inside ConsoleProvider) ─────
+const AppInner = () => {
+    const { log } = useConsole();
 
-  const handleDataReady = (query, fileId, sqlColumns, fileColumns) => {
-    setIngestData({ query, fileId, sqlColumns, fileColumns });
-    setStep(3);
-  };
+    // ── Global state ──
+    const [activeModule, setActiveModule] = useState('sql-to-file');
+    const [activeTab, setActiveTab] = useState('sql-query');
+    const [connection, setConnection] = useState(null);
 
-  const handleRunComplete = (resultId, summary) => {
-    setResultDetails({ id: resultId, summary });
-    setStep(4);
-  };
+    // ── Lifted tab state ──
+    const [sqlState, setSqlState] = useState({ query: '', columns: [], rows: [], count: 0, executed: false });
+    const [fileState, setFileState] = useState({ fileId: null, fileName: '', columns: [], rows: [], count: 0, uploaded: false });
+    const [mappingState, setMappingState] = useState({ mapping: {}, keys: [], initialized: false });
 
-  const handleReset = () => {
-    setStep(2); // Go back to data ingest, keep connection
-    setResultDetails({ id: '', summary: {} });
-  };
+    // ── Resizable console ──
+    const [consoleHeight, setConsoleHeight] = useState(280);
+    const dragging = useRef(false);
+    const startY = useRef(0);
+    const startH = useRef(0);
 
-  return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-800">
-      {/* Top Bar */}
-      <header className="bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-             <div className="bg-indigo-500 p-2 rounded">
-                <LayoutDashboard className="w-6 h-6 text-white" />
-             </div>
-             <h1 className="text-xl font-bold tracking-tight">SQL Reconciliation Tool</h1>
-          </div>
-          <div className="flex gap-2">
-             <StepBadge num={1} label="Connect" active={step === 1} done={step > 1} />
-             <StepBadge num={2} label="Data" active={step === 2} done={step > 2} />
-             <StepBadge num={3} label="Map" active={step === 3} done={step > 3} />
-             <StepBadge num={4} label="Results" active={step === 4} done={step > 4} />
-          </div>
-        </div>
-      </header>
-      
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-6">
-        
-        {step === 1 && (
-            <div className="max-w-3xl mx-auto animate-fade-in">
-                 <ConnectionPanel onConnected={handleConnected} />
-            </div>
-        )}
+    const onMouseDown = (e) => {
+        dragging.current = true;
+        startY.current = e.clientY;
+        startH.current = consoleHeight;
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+    };
 
-        {step === 2 && (
-             <div className="animate-fade-in">
-                <div className="flex justify-between items-center mb-4">
-                     <h2 className="text-2xl font-bold">Data Ingestion</h2>
-                     <span className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded">
-                         Connected to: <strong>{connectionDetails.server}</strong> / {connectionDetails.database}
-                     </span>
+    useEffect(() => {
+        const onMouseMove = (e) => {
+            if (!dragging.current) return;
+            const delta = startY.current - e.clientY;
+            const newH = Math.max(100, Math.min(window.innerHeight - 200, startH.current + delta));
+            setConsoleHeight(newH);
+        };
+        const onMouseUp = () => {
+            dragging.current = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        return () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+    }, [consoleHeight]);
+
+    // ── Tab lock logic ──
+    const tabEnabled = (tabId) => {
+        if (!connection) return false;
+        if (tabId === 'sql-query') return true;
+        if (tabId === 'file-upload') return sqlState.executed;
+        if (tabId === 'keys-mapping') return sqlState.executed && fileState.uploaded;
+        if (tabId === 'run-comparison') return sqlState.executed && fileState.uploaded && mappingState.initialized;
+        return false;
+    };
+
+    // ── Connection handlers ──
+    const handleConnected = (conn) => {
+        setConnection(conn);
+        setTimeout(() => setActiveTab('sql-query'), 300);
+    };
+    const handleDisconnected = () => {
+        setConnection(null);
+        setActiveTab('sql-query');
+        setSqlState({ query: '', columns: [], rows: [], count: 0, executed: false });
+        setFileState({ fileId: null, fileName: '', columns: [], rows: [], count: 0, uploaded: false });
+        setMappingState({ mapping: {}, keys: [], initialized: false });
+        log('All state reset.', 'system');
+    };
+
+    // ── Next handlers ──
+    const goNext = (from) => {
+        const order = TABS.map(t => t.id);
+        const idx = order.indexOf(from);
+        if (idx >= 0 && idx < order.length - 1) {
+            setActiveTab(order[idx + 1]);
+        }
+    };
+
+    // ── Reset for new comparison ──
+    const handleReset = () => {
+        setSqlState({ query: '', columns: [], rows: [], count: 0, executed: false });
+        setFileState({ fileId: null, fileName: '', columns: [], rows: [], count: 0, uploaded: false });
+        setMappingState({ mapping: {}, keys: [], initialized: false });
+        setActiveTab('sql-query');
+        log('───── New Comparison ─────', 'header');
+        log('State cleared. Ready for a new comparison.', 'system');
+    };
+
+    // ── Render active tab content ──
+    const renderTab = () => {
+        if (!connection) {
+            return (
+                <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                    Connect to a database to begin.
                 </div>
-                <DataIngestPanel connectionDetails={connectionDetails} onDataReady={handleDataReady} />
-             </div>
-        )}
+            );
+        }
+        switch (activeTab) {
+            case 'sql-query':
+                return <SqlQueryTab connection={connection} sqlState={sqlState} setSqlState={setSqlState} onNext={() => goNext('sql-query')} />;
+            case 'file-upload':
+                return <FileUploadTab fileState={fileState} setFileState={setFileState} onNext={() => goNext('file-upload')} />;
+            case 'keys-mapping':
+                return <KeysMappingTab sqlState={sqlState} fileState={fileState} mappingState={mappingState} setMappingState={setMappingState} onNext={() => goNext('keys-mapping')} />;
+            case 'run-comparison':
+                return <RunComparisonTab connection={connection} sqlState={sqlState} fileState={fileState} mappingState={mappingState} onReset={handleReset} />;
+            default:
+                return null;
+        }
+    };
 
-        {step === 3 && (
-            <div className="max-w-4xl mx-auto animate-fade-in">
-                <ValidationPanel ingestData={ingestData} connectionDetails={connectionDetails} onRunComplete={handleRunComplete} />
+    return (
+        <div className="flex h-screen w-screen overflow-hidden bg-gray-100">
+            {/* ── Sidebar ── */}
+            <Sidebar activeModule={activeModule} onModuleChange={setActiveModule} />
+
+            {/* ── Main Area ── */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* ── Connection Bar ── */}
+                <ConnectionBar connection={connection} onConnected={handleConnected} onDisconnected={handleDisconnected} />
+
+                {/* ── Tab Bar ── */}
+                <div className="bg-white border-b border-gray-200 flex px-2 pt-1 gap-0.5 flex-shrink-0">
+                    {TABS.map((tab, i) => {
+                        const enabled = tabEnabled(tab.id);
+                        const active = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => enabled && setActiveTab(tab.id)}
+                                disabled={!enabled}
+                                className={`px-4 py-2 text-xs font-bold rounded-t transition-all relative
+                                    ${active
+                                        ? 'bg-gray-50 text-brand-900 border border-b-0 border-gray-200 -mb-px z-10'
+                                        : enabled
+                                        ? 'text-gray-500 hover:text-brand-700 hover:bg-brand-100/20'
+                                        : 'text-gray-300 cursor-default'
+                                    }`}
+                            >
+                                <span className="flex items-center gap-1.5">
+                                    <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold flex-shrink-0
+                                        ${active ? 'bg-brand-700 text-white' : enabled ? 'bg-brand-500/60 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                        {i + 1}
+                                    </span>
+                                    {tab.label}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* ── Content + Console Split ── */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    {/* Content area */}
+                    <div className="flex-1 overflow-auto bg-gray-50">
+                        {renderTab()}
+                    </div>
+
+                    {/* Drag handle */}
+                    <div
+                        onMouseDown={onMouseDown}
+                        className="h-1.5 bg-gray-300 hover:bg-brand-700 cursor-row-resize flex-shrink-0 transition-colors relative group"
+                    >
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center">
+                            <div className="w-8 h-0.5 bg-gray-400 group-hover:bg-white rounded-full" />
+                        </div>
+                    </div>
+
+                    {/* Console */}
+                    <div style={{ height: consoleHeight }} className="flex-shrink-0 overflow-hidden">
+                        <ConsolePanel />
+                    </div>
+                </div>
             </div>
-        )}
-
-        {step === 4 && (
-             <div className="h-[calc(100vh-140px)] animate-fade-in">
-                <ResultsPanel resultId={resultDetails.id} summary={resultDetails.summary} onReset={handleReset} />
-             </div>
-        )}
-
-      </main>
-    </div>
-  );
-}
-
-const StepBadge = ({ num, label, active, done }) => (
-    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold transition-colors ${active ? 'bg-indigo-600 text-white' : done ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-        <div className={`w-5 h-5 rounded-full flex items-center justify-center ${active || done ? 'bg-white text-indigo-900 border-none' : 'border border-slate-500'}`}>
-            {num}
         </div>
-        <span className="hidden md:inline">{label}</span>
-    </div>
+    );
+};
+
+// ───── Root App with Provider ─────
+const App = () => (
+    <ConsoleProvider>
+        <AppInner />
+    </ConsoleProvider>
 );
 
 export default App;
