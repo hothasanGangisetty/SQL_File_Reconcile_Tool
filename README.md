@@ -31,7 +31,7 @@ A production-ready web application that compares SQL Server query results agains
 - [Deployment Options](#deployment-options)
   - [Option A: Single Server (Recommended)](#option-a-single-server-recommended)
   - [Option B: Development Mode (Two Servers)](#option-b-development-mode-two-servers)
-  - [Option C: Org Laptop (No Node.js)](#option-c-org-laptop-no-nodejs)
+  - [Option C: E-Laptop (No Node.js)](#option-c-org-laptop-no-nodejs)
 - [Usage Guide (Step-by-Step)](#usage-guide-step-by-step)
 - [Database Connectivity](#database-connectivity)
 - [How the Comparison Engine Works](#how-the-comparison-engine-works)
