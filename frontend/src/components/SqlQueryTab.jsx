@@ -14,7 +14,7 @@ const SqlQueryTab = ({ connection, sqlState, setSqlState, onNext }) => {
         log(sqlState.query.trim(), 'header');
 
         try {
-            const res = await axios.post('http://127.0.0.1:5000/api/preview_sql', {
+            const res = await axios.post('/api/preview_sql', {
                 server: connection.server,
                 database: connection.database,
                 query: sqlState.query

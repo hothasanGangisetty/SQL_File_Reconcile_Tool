@@ -24,7 +24,7 @@ const FileUploadTab = ({ fileState, setFileState, onNext }) => {
         formData.append('file', file);
 
         try {
-            const res = await axios.post('http://127.0.0.1:5000/api/upload_file', formData, {
+            const res = await axios.post('/api/upload_file', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 

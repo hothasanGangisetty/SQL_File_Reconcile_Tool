@@ -37,7 +37,7 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
                 keys: mappingState.keys
             };
 
-            const res = await axios.post('http://127.0.0.1:5000/api/run_comparison', payload);
+            const res = await axios.post('/api/run_comparison', payload);
             const { result_id, summary: sum } = res.data;
 
             setResultId(result_id);
@@ -72,7 +72,7 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
                 let pg = 1, hasMore = true;
                 while (hasMore) {
                     const res = await axios.get(
-                        `http://127.0.0.1:5000/api/results_page?result_id=${resultId}&page=${pg}&size=5000`
+                        `/api/results_page?result_id=${resultId}&page=${pg}&size=5000`
                     );
                     collected = [...collected, ...res.data.data];
                     hasMore = res.data.has_more;
@@ -107,7 +107,7 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
     // --- Export Excel (styled with colors) ---
     const handleExportExcel = () => {
         const a = document.createElement('a');
-        a.href = `http://127.0.0.1:5000/api/export_excel?result_id=${resultId}`;
+        a.href = `/api/export_excel?result_id=${resultId}`;
         a.download = '';
         a.click();
         log('Downloading styled Excel report with color formatting...', 'success');

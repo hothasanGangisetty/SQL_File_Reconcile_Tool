@@ -1,11 +1,14 @@
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
 import pyodbc
 import pandas as pd
 import json
 import os
 
-app = Flask(__name__)
+# ── Serve React build from frontend/dist ──
+FRONTEND_DIST = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')
+
+app = Flask(__name__, static_folder=FRONTEND_DIST, static_url_path='')
 CORS(app)  # Enable CORS for React frontend
 
 # Load Configuration
@@ -459,6 +462,22 @@ def export_excel():
         as_attachment=True,
         download_name=f'reconciliation_{result_id[:8]}.xlsx'
     )
+
+# ── Serve React UI (catch-all route) ──
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    """Serve React frontend. API routes are handled above, everything else serves index.html."""
+    # If the requested file exists in dist/, serve it (JS, CSS, images, etc.)
+    full_path = os.path.join(FRONTEND_DIST, path)
+    if path and os.path.isfile(full_path):
+        return send_from_directory(FRONTEND_DIST, path)
+    # Otherwise serve index.html (React Router handles client-side routing)
+    index_path = os.path.join(FRONTEND_DIST, 'index.html')
+    if os.path.isfile(index_path):
+        return send_from_directory(FRONTEND_DIST, 'index.html')
+    return jsonify({"error": "Frontend not built. Run 'npm run build' in the frontend/ folder first."}), 404
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

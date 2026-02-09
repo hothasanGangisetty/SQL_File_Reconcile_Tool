@@ -12,7 +12,7 @@ const ConnectionBar = ({ connection, onConnected, onDisconnected }) => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        axios.get('http://127.0.0.1:5000/api/config')
+        axios.get('/api/config')
             .then(res => {
                 setConfig(res.data);
                 log('Configuration loaded. Select an environment to begin.', 'system');
@@ -31,7 +31,7 @@ const ConnectionBar = ({ connection, onConnected, onDisconnected }) => {
         log(`Connecting to ${selectedServer} / ${selectedDB} ...`, 'info');
 
         try {
-            const res = await axios.post('http://127.0.0.1:5000/api/connect', {
+            const res = await axios.post('/api/connect', {
                 server: selectedServer,
                 database: selectedDB
             });

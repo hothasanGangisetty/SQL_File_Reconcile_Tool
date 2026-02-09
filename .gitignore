@@ -6,7 +6,6 @@ __pycache__/
 *.pyo
 *.egg-info/
 *.egg
-dist/
 build/
 venv/
 .venv/
@@ -24,9 +23,9 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # ===========================
-# Vite Build Output
+# Vite Build Output (included for easy deployment)
 # ===========================
-frontend/dist/
+# frontend/dist/ is NOT ignored — deliberately committed for org laptop deployment
 
 # ===========================
 # Cache & Temp Files
