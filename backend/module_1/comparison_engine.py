@@ -44,9 +44,18 @@ def normalize_series_for_comparison(s):
         # Remove trailing midnight time component
         s_val = re.sub(r'\s+00:00:00(\.\d+)?$', '', s_val)
 
+        # Remove trailing zero seconds (e.g. 2024-03-01 08:00:00 -> 2024-03-01 08:00)
+        # SMALLDATETIME has no seconds precision, always shows :00
+        s_val = re.sub(r'(\d{1,2}:\d{2}):00(\.\d*)?$', r'\1', s_val)
+
         if re.match(r'^\d{4}-\d{2}-\d{2}$', s_val):
             return s_val
 
+        # Timestamp normalisation: strip trailing zeros from decimals
+        # Matches: 2024-12-01 10:20:30.123000 -> 2024-12-01 10:20:30.123
+        # Also matches: 10:20:30.123000 -> 10:20:30.123
+        s_val = re.sub(r'(\.\d*?)0+$', r'\1', s_val)
+        
         # Numeric normalisation: 1750.0 -> 1750, 1750.50 -> 1750.5
         try:
             num = float(s_val)
@@ -78,6 +87,9 @@ def _fast_normalize_series(s):
     # Strip midnight time component: "2025-01-01 00:00:00" -> "2025-01-01"
     out = out.str.replace(r'\s+00:00:00(\.\d+)?$', '', regex=True)
 
+    # Strip trailing zero seconds: "08:00:00" -> "08:00" (SMALLDATETIME compatibility)
+    out = out.str.replace(r'(\d{1,2}:\d{2}):00(\.\d*)?$', r'\1', regex=True)
+
     # Numeric normalisation via string regex (avoids slow pd.to_numeric):
     # "1750.0" / "1750.00" -> "1750"
     out = out.str.replace(r'\.0+$', '', regex=True)
@@ -96,7 +108,13 @@ def _clean_display_value(val):
     s = str(val).strip()
     if s in ('None', 'nan', 'NaT', 'NaN', ''):
         return ''
+    
+    # 1. Strip midnight time component: "2025-01-01 00:00:00" -> "2025-01-01"
     s = re.sub(r'\s+00:00:00(\.\d+)?$', '', s)
+    
+    # 2. Strip trailing zero seconds: "08:00:00" -> "08:00" (SMALLDATETIME)
+    s = re.sub(r'(\d{1,2}:\d{2}):00(\.\d*)?$', r'\1', s)
+    
     return s
 
 

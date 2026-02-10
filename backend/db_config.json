@@ -1,8 +1,6 @@
 {
   "odbc_driver": "ODBC Driver 17 for SQL Server",
   "auth_type": "windows",
-  "username": "sa",
-  "password": "YourPassword123",
   "idle_timeout_minutes": 10,
   "environments": [
     {
@@ -11,8 +9,6 @@
         {
           "server_label": "QA1_Payments_Server",
           "host": "localhost\\SQLEXPRESS",
-          "username": "reader",
-          "password": "reader",
           "databases": ["PayDB", "RiskDB", "ReconcileLab"]
         },
         {
