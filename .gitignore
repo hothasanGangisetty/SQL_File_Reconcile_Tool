@@ -6,7 +6,6 @@ __pycache__/
 *.pyo
 *.egg-info/
 *.egg
-build/
 venv/
 .venv/
 env/
@@ -23,9 +22,9 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # ===========================
-# Vite Build Output (included for easy deployment)
+# CRA Build Output (included for single-server deployment)
 # ===========================
-# frontend/dist/ is NOT ignored — deliberately committed for org laptop deployment
+# frontend/build/ is NOT ignored — deliberately committed for org laptop deployment
 
 # ===========================
 # Cache & Temp Files
@@ -49,9 +48,9 @@ Thumbs.db
 # ===========================
 # Environment & Secrets
 # ===========================
-.env
 .env.local
 .env.*.local
+# Note: frontend/.env is NOT ignored — it contains CRA build flags only (no secrets)
 
 # ===========================
 # OS Files

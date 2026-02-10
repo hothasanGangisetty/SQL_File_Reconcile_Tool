@@ -17,6 +17,7 @@ const SqlQueryTab = ({ connection, sqlState, setSqlState, onNext }) => {
             const res = await axios.post('/api/preview_sql', {
                 server: connection.server,
                 database: connection.database,
+                port: connection.port,
                 query: sqlState.query
             });
 

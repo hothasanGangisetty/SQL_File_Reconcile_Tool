@@ -1,4 +1,9 @@
 {
+  "odbc_driver": "ODBC Driver 17 for SQL Server",
+  "auth_type": "windows",
+  "username": "sa",
+  "password": "YourPassword123",
+  "idle_timeout_minutes": 10,
   "environments": [
     {
       "env_name": "QA_Release_1",
@@ -6,13 +11,13 @@
         {
           "server_label": "QA1_Payments_Server",
           "host": "localhost\\SQLEXPRESS",
-          "default_port": 1433,
+          "port": 1433,
           "databases": ["PayDB", "RiskDB", "ReconcileLab"]
         },
         {
           "server_label": "QA1_User_Server",
           "host": "localhost\\SQLEXPRESS",
-          "default_port": 1433,
+          "port": 1433,
           "databases": ["UserMaster", "AuthDB"]
         }
       ]
@@ -23,7 +28,7 @@
         {
           "server_label": "UAT_Main_Server",
           "host": "localhost\\SQLEXPRESS",
-          "default_port": 1433,
+          "port": 1433,
           "databases": ["UAT_Core", "UAT_Reporting"]
         }
       ]

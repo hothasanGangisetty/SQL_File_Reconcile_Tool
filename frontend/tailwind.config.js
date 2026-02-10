@@ -1,17 +1,17 @@
-export default {
+/** @type {import('tailwindcss').Config} */
+module.exports = {
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    "./src/**/*.{js,jsx,ts,tsx}",
   ],
   theme: {
     extend: {
       colors: {
         brand: {
-          900: '#22577A', // Baltic Blue  – sidebar, dark chrome
-          700: '#38A3A5', // Tropical Teal – primary accent
-          500: '#57CC99', // Emerald      – secondary accent
-          300: '#80ED99', // Light Green  – highlights, badges
-          100: '#C7F9CC', // Tea Green    – subtle fills
+          900: '#22577A',
+          700: '#38A3A5',
+          500: '#57CC99',
+          300: '#80ED99',
+          100: '#C7F9CC',
         },
       },
     },

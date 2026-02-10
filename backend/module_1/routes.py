@@ -11,6 +11,7 @@ import uuid
 from common.json_utils import safe_jsonify, sanitize_df_for_json
 from common.db_utils import get_connection_string
 from common.storage_manager import save_df, load_df
+from common.routes import _touch_activity
 from module_1.comparison_engine import run_hybrid_comparison
 
 m1_bp = Blueprint('module_1', __name__)
@@ -21,10 +22,12 @@ def preview_sql():
     """
     Executes a SQL query and returns columns + top 5 rows.
     """
+    _touch_activity()
     data = request.json
     server = data.get('server')
     database = data.get('database')
     query = data.get('query')
+    port = data.get('port')
 
     if not server or not database or not query:
         return safe_jsonify({"error": "Missing parameters"}, 400)
@@ -34,7 +37,7 @@ def preview_sql():
     if any(keyword in query.upper() for keyword in forbidden_keywords):
         return safe_jsonify({"error": "Security Alert: Only SELECT queries are permitted in this environment."}, 403)
 
-    conn_str = get_connection_string(server, database)
+    conn_str = get_connection_string(server, database, port)
 
     try:
         conn = pyodbc.connect(conn_str, timeout=10)
@@ -67,6 +70,7 @@ def upload_file():
     """
     Uploads a file, saves it temp, and returns columns + preview.
     """
+    _touch_activity()
     if 'file' not in request.files:
         return safe_jsonify({"error": "No file part"}, 400)
 
@@ -114,13 +118,16 @@ def run_comparison():
     3. Runs Hybrid Comparison Engine.
     4. Caches Result.
     """
+    _touch_activity()
     data = request.json
     file_id = data.get('file_id')
     server = data.get('server')
     database = data.get('database')
     query = data.get('query')
+    port = data.get('port')
     keys = data.get('keys', [])
     column_mapping = data.get('column_mapping', [])
+    file_name = data.get('file_name', 'File')
 
     if not file_id or not server or not database or not query:
         return safe_jsonify({"error": "Missing required parameters"}, 400)
@@ -132,7 +139,7 @@ def run_comparison():
 
     try:
         # 2. Fetch Full SQL Data
-        conn_str = get_connection_string(server, database)
+        conn_str = get_connection_string(server, database, port)
         conn = pyodbc.connect(conn_str)
         df_sql = pd.read_sql(query, conn)
         conn.close()
@@ -148,7 +155,7 @@ def run_comparison():
             df_file = df_file.rename(columns=rename_map)
 
         # 4. Run Logic
-        result_df, summary = run_hybrid_comparison(df_sql, df_file, keys)
+        result_df, summary = run_hybrid_comparison(df_sql, df_file, keys, file_name=file_name)
 
         # 5. Cache Result
         result_id = str(uuid.uuid4())
@@ -271,10 +278,10 @@ def export_excel():
         for _, row in section_df.iterrows():
             mismatch_cols = [c.strip() for c in str(row.get('_mismatch_cols', '')).split(',') if c.strip()]
             status = str(row.get('status', ''))
-            pre_post = str(row.get('pre/post', ''))
+            source_val = str(row.get('source', ''))
 
             if status == 'Mismatch':
-                base_fill = pre_fill if pre_post == 'pre' else post_fill
+                base_fill = pre_fill if source_val == 'SQL' else post_fill
             elif status == 'Only in SQL':
                 base_fill = sql_only_fill
             elif status == 'Only in File':

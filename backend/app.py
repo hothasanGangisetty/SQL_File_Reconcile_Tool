@@ -3,6 +3,9 @@ SQL File Reconcile Tool — Main Flask Application
 =================================================
 Slim entry point that registers modular Blueprints and serves the React UI.
 
+Build the React app with 'npm run build' in the frontend/ directory.
+CRA outputs to frontend/build/, which Flask serves as static files.
+
 Modules:
   - common   : Shared JSON utils, DB utils, storage, connection routes
   - module_1 : SQL-to-File comparison  (active)
@@ -12,14 +15,15 @@ Modules:
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
-import os
+import os, atexit
 
 from common.json_utils import safe_jsonify
+from common.storage_manager import clear_cache
 
-# ── Serve React build from frontend/dist ──
-FRONTEND_DIST = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')
+# ── Serve React build from frontend/build (CRA output) ──
+FRONTEND_BUILD = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build')
 
-app = Flask(__name__, static_folder=FRONTEND_DIST, static_url_path='')
+app = Flask(__name__, static_folder=FRONTEND_BUILD, static_url_path='')
 CORS(app)
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -42,13 +46,23 @@ app.register_blueprint(m3_bp)
 @app.route('/<path:path>')
 def serve_react(path):
     """Serve React frontend. API routes are handled by blueprints above."""
-    full_path = os.path.join(FRONTEND_DIST, path)
+    full_path = os.path.join(FRONTEND_BUILD, path)
     if path and os.path.isfile(full_path):
-        return send_from_directory(FRONTEND_DIST, path)
-    index_path = os.path.join(FRONTEND_DIST, 'index.html')
+        return send_from_directory(FRONTEND_BUILD, path)
+    index_path = os.path.join(FRONTEND_BUILD, 'index.html')
     if os.path.isfile(index_path):
-        return send_from_directory(FRONTEND_DIST, 'index.html')
+        return send_from_directory(FRONTEND_BUILD, 'index.html')
     return safe_jsonify({"error": "Frontend not built. Run 'npm run build' in the frontend/ folder first."}, 404)
+
+
+# ── Graceful shutdown: clean up temp cache ──
+def _on_shutdown():
+    try:
+        clear_cache()
+    except Exception:
+        pass
+
+atexit.register(_on_shutdown)
 
 
 if __name__ == '__main__':

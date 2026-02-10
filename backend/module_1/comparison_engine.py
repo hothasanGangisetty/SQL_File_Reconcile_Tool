@@ -102,12 +102,15 @@ def _clean_display_value(val):
 
 # ========================= Pre / Post Transform ===========================
 
-def transform_to_pre_post(diff_df, key_cols, common_cols):
-    """Transform side-by-side _sql/_file columns into stacked pre/post rows.
+def transform_to_pre_post(diff_df, key_cols, common_cols, sql_label='SQL', file_label='File'):
+    """Transform side-by-side _sql/_file columns into stacked source rows.
 
-    For Mismatches:     2 rows (pre = SQL values, post = File values)
-    For Only in SQL:    1 row  (pre)
-    For Only in File:   1 row  (post)
+    For Mismatches:     2 rows (source=sql_label values, source=file_label values)
+    For Only in SQL:    1 row  (source=sql_label)
+    For Only in File:   1 row  (source=file_label)
+
+    sql_label / file_label control the value in the 'source' column,
+    e.g. 'SQL' and 'test@diff.xlsx'.
     """
     rows = []
 
@@ -127,31 +130,31 @@ def transform_to_pre_post(diff_df, key_cols, common_cols):
 
         mismatch_str = ','.join(mismatch_cols)
 
-        # PRE row (SQL values)
+        # SQL row
         if status in ('Mismatch', 'Only in SQL'):
             pre = {k: row.get(k, '') for k in key_cols}
             for col in common_cols:
                 pre[col] = _clean_display_value(row.get(f'{col}_sql', row.get(col, '')))
-            pre['pre/post'] = 'pre'
+            pre['source'] = sql_label
             pre['status'] = status
             pre['_mismatch_cols'] = mismatch_str
             rows.append(pre)
 
-        # POST row (File values)
+        # File row
         if status in ('Mismatch', 'Only in File'):
             post = {k: row.get(k, '') for k in key_cols}
             for col in common_cols:
                 post[col] = _clean_display_value(row.get(f'{col}_file', row.get(col, '')))
-            post['pre/post'] = 'post'
+            post['source'] = file_label
             post['status'] = status
             post['_mismatch_cols'] = mismatch_str
             rows.append(post)
 
     if not rows:
-        return pd.DataFrame(columns=key_cols + common_cols + ['pre/post', 'status', '_mismatch_cols'])
+        return pd.DataFrame(columns=key_cols + common_cols + ['source', 'status', '_mismatch_cols'])
 
     result = pd.DataFrame(rows)
-    ordered = [c for c in key_cols + common_cols + ['pre/post', 'status', '_mismatch_cols'] if c in result.columns]
+    ordered = [c for c in key_cols + common_cols + ['source', 'status', '_mismatch_cols'] if c in result.columns]
     return result[ordered]
 
 
@@ -370,12 +373,14 @@ def _key_based_comparison(df_sql, df_file, keys):
 
 # ========================== Public Entry Point ==============================
 
-def run_hybrid_comparison(df_sql, df_file, keys=None):
+def run_hybrid_comparison(df_sql, df_file, keys=None, file_name='File'):
     """Compare two DataFrames and return (pre_post_df, summary).
 
     When *keys* are provided  -> key-based outer join  (100 % accurate).
     When *keys* are empty     -> smart fingerprint + similarity pairing
                                  (accurate regardless of row order).
+
+    file_name is used as the label for the file source column (instead of 'post').
     """
     t_start = time.time()
 
@@ -399,7 +404,7 @@ def run_hybrid_comparison(df_sql, df_file, keys=None):
             "elapsed_seconds":    round(time.time() - t_start, 2)
         }
 
-        pre_post_df = transform_to_pre_post(final, key_cols, common_cols)
+        pre_post_df = transform_to_pre_post(final, key_cols, common_cols, sql_label='SQL', file_label=file_name)
         return pre_post_df, summary
 
     else:
@@ -427,5 +432,5 @@ def run_hybrid_comparison(df_sql, df_file, keys=None):
             "elapsed_seconds":    round(time.time() - t_start, 2)
         }
 
-        pre_post_df = transform_to_pre_post(diff_df, key_cols, common_cols)
+        pre_post_df = transform_to_pre_post(diff_df, key_cols, common_cols, sql_label='SQL', file_label=file_name)
         return pre_post_df, summary

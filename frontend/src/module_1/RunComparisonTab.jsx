@@ -30,8 +30,10 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
             const column_mapping = mappedPairs.map(([sqlCol, fileCol]) => ({ sql: sqlCol, file: fileCol }));
             const payload = {
                 file_id: fileState.fileId,
+                file_name: fileState.fileName,
                 server: connection.server,
                 database: connection.database,
+                port: connection.port,
                 query: sqlState.query,
                 column_mapping,
                 keys: mappingState.keys
@@ -142,7 +144,7 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
                     <thead className="bg-brand-900 text-white sticky top-0 z-10 font-bold">
                         <tr>
                             {columns.map(col => (
-                                <th key={col} className={`px-2 py-1.5 border-r border-slate-600 ${col === 'pre/post' ? 'w-16' : ''}`}>
+                                <th key={col} className={`px-2 py-1.5 border-r border-slate-600 ${col === 'source' ? 'w-24' : ''}`}>
                                     {col}
                                 </th>
                             ))}
@@ -150,8 +152,8 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
                     </thead>
                     <tbody>
                         {rows.map((row, idx) => {
-                            const isPreRow = row['pre/post'] === 'pre';
-                            const isPairStart = isPreRow || row.status !== 'Mismatch';
+                            const isSqlRow = row['source'] === 'SQL';
+                            const isPairStart = isSqlRow || row.status !== 'Mismatch';
                             return (
                                 <tr
                                     key={idx}
@@ -159,10 +161,10 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
                                 >
                                     {columns.map(col => {
                                         const mismatch = isMismatchCell(row, col);
-                                        const isPrePostCol = col === 'pre/post';
+                                        const isSourceCol = col === 'source';
                                         let cellClass = 'px-2 py-1 border-r';
-                                        if (isPrePostCol) {
-                                            cellClass += isPreRow ? ' font-bold text-blue-700' : ' font-bold text-emerald-700';
+                                        if (isSourceCol) {
+                                            cellClass += isSqlRow ? ' font-bold text-blue-700' : ' font-bold text-emerald-700';
                                         } else if (mismatch) {
                                             cellClass += ' bg-red-200 text-red-900 font-bold';
                                         }
@@ -275,8 +277,8 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
             {/* Toolbar */}
             <div className="flex justify-between items-center text-xs">
                 <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-yellow-200 border border-yellow-400 inline-block" /> pre (SQL)</span>
-                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-green-200 border border-green-400 inline-block" /> post (File)</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-yellow-200 border border-yellow-400 inline-block" /> SQL</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-green-200 border border-green-400 inline-block" /> {fileState.fileName || 'File'}</span>
                     <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-300 border border-red-400 inline-block" /> Changed</span>
                 </div>
                 <div className="flex gap-2">
@@ -310,7 +312,7 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
                         count={summary.mismatches} color="bg-orange-50 text-orange-800"
                         sectionKey="mismatch" badgeBg="bg-orange-500"
                     />
-                    {!collapsed.mismatch && renderTable(mismatched, row => row['pre/post'] === 'pre' ? 'bg-yellow-50' : 'bg-green-50')}
+                    {!collapsed.mismatch && renderTable(mismatched, row => row['source'] === 'SQL' ? 'bg-yellow-50' : 'bg-green-50')}
                 </div>
             )}
 

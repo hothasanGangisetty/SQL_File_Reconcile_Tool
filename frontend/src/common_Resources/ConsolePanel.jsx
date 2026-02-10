@@ -1,14 +1,26 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useConsole } from './ConsoleContext';
 import { Trash2 } from 'lucide-react';
 
 const ConsolePanel = () => {
-    const { logs, clear } = useConsole();
+    const { logs, log, clear } = useConsole();
     const bottomRef = useRef(null);
+    const [cmdInput, setCmdInput] = useState('');
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [logs]);
+
+    const handleCmd = (e) => {
+        if (e.key !== 'Enter') return;
+        const cmd = cmdInput.trim().toLowerCase();
+        if (cmd === 'clear' || cmd === 'cls') {
+            clear();
+        } else if (cmd) {
+            log(`Unknown command: ${cmd}`, 'warn');
+        }
+        setCmdInput('');
+    };
 
     const colorMap = {
         info:    'text-gray-300',
@@ -108,10 +120,18 @@ const ConsolePanel = () => {
                 <div ref={bottomRef} />
             </div>
 
-            {/* Prompt line */}
-            <div className="px-3 py-1 border-t border-gray-800 text-gray-600 flex-shrink-0">
+            {/* Interactive prompt line — type 'clear' to clear console */}
+            <div className="px-3 py-1 border-t border-gray-800 flex items-center gap-1 flex-shrink-0">
                 <span className="text-brand-500">C:\Reconcile&gt;</span>
-                <span className="animate-pulse ml-1">_</span>
+                <input
+                    type="text"
+                    value={cmdInput}
+                    onChange={e => setCmdInput(e.target.value)}
+                    onKeyDown={handleCmd}
+                    placeholder="type 'clear' to clear console"
+                    className="flex-1 bg-transparent text-gray-300 text-xs outline-none font-mono placeholder-gray-700"
+                    spellCheck={false}
+                />
             </div>
         </div>
     );
