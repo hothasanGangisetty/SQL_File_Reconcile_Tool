@@ -26,20 +26,22 @@ def load_config():
                 "idle_timeout_minutes": 10}
 
 
-def get_connection_string(server, database, port=None):
+def get_connection_string(server, database, port=None, username=None, password=None):
     """
     Build ODBC connection string based on auth_type in config.
-
-    - 'windows' → Trusted_Connection=yes
-    - 'sql'     → UID + PWD from config
-
-    The server param may include instance name (e.g., 'host\\SQLEXPRESS').
-    If port is given and server does NOT already contain a comma-port suffix,
-    it is appended as SERVER=host\\instance,port.
+    Prioritizes provided username/password over global config.
     """
     cfg = CONFIG
     odbc_driver = cfg.get('odbc_driver', 'ODBC Driver 17 for SQL Server')
-    auth_type = cfg.get('auth_type', 'windows').lower()
+    
+    # Determine auth strategy
+    use_sql_auth = False
+    global_auth_type = cfg.get('auth_type', 'windows').lower()
+    
+    if username is not None or password is not None:
+        use_sql_auth = True
+    elif global_auth_type == 'sql':
+        use_sql_auth = True
 
     # Build SERVER value with optional port
     server_val = server
@@ -52,27 +54,41 @@ def get_connection_string(server, database, port=None):
         f"DATABASE={database};"
     )
 
-    if auth_type == 'sql':
-        username = cfg.get('username', '')
-        password = cfg.get('password', '')
-        conn_str += f"UID={username};PWD={password};"
+    if use_sql_auth:
+        u = username if username is not None else cfg.get('username', '')
+        p = password if password is not None else cfg.get('password', '')
+        conn_str += f"UID={u};PWD={p};"
     else:
         conn_str += "Trusted_Connection=yes;"
 
     return conn_str
 
 
-def validate_credentials(username, password):
+def validate_credentials(server, username, password):
     """
     Validate that the user-supplied credentials match the hardcoded config.
-    Returns True if auth_type is 'windows' (no creds needed) or if they match.
+    Checks specifically against the instance configuration if available.
     """
     cfg = CONFIG
-    auth_type = cfg.get('auth_type', 'windows').lower()
-    if auth_type == 'windows':
-        return True
-    return (username == cfg.get('username', '') and
-            password == cfg.get('password', ''))
+    
+    # 1. Find if this server has specific config
+    target_instance = None
+    for env in cfg.get('environments', []):
+        for inst in env.get('instances', []):
+            if inst.get('host') == server or inst.get('server_label') == server:
+                target_instance = inst
+                break
+        if target_instance: break
+    
+    # 2. Determine trusted source of truth (Instance vs Global)
+    if target_instance and (target_instance.get('username') or target_instance.get('password')):
+        config_user = target_instance.get('username', '')
+        config_pass = target_instance.get('password', '')
+    else:
+        config_user = cfg.get('username', '')
+        config_pass = cfg.get('password', '')
+        
+    return (username == config_user and password == config_pass)
 
 
 # Loaded once at import time — available as common.db_utils.CONFIG

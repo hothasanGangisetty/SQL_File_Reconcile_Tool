@@ -81,28 +81,32 @@ def test_connection():
     server = data.get('server')
     database = data.get('database')
     port = data.get('port')
-    ui_username = data.get('username', '')
-    ui_password = data.get('password', '')
+    # Use None default to distinguish between "provided empty string" and "not provided"
+    ui_username = data.get('username')
+    ui_password = data.get('password')
 
     if not server or not database:
         return safe_jsonify({"error": "Missing server or database parameters"}, 400)
 
-    auth_type = CONFIG.get('auth_type', 'windows').lower()
-
-    # ── Credential validation for SQL Auth ──
-    if auth_type == 'sql':
-        if not validate_credentials(ui_username, ui_password):
-            return safe_jsonify({
+    # ── Strict Credential Validation (Gatekeeper) ──
+    # If credentials are provided, they MUST match what is in db_config.json
+    if ui_username is not None or ui_password is not None:
+        if not validate_credentials(server, ui_username, ui_password):
+             return safe_jsonify({
                 "status": "error",
-                "message": "Invalid credentials. The username/password you entered does not match the configured values."
+                "message": "Validation Failed: The entered credentials do not match the expected configuration for this environment."
             }, 401)
 
-    # Build connection string (port-aware)
-    conn_str = get_connection_string(server, database, port)
-
+    # ── Allow connection attempt (DB will validate credentials) ──
+    # We now pass username/password directly to the connection string builder.
     try:
+        conn_str = get_connection_string(
+            server, database, port, 
+            username=ui_username, password=ui_password
+        )
+        
+        # Explicitly attempt connection
         drivers = [x for x in pyodbc.drivers() if 'SQL Server' in x]
-
         conn = pyodbc.connect(conn_str, timeout=5)
         conn.close()
 
@@ -115,18 +119,24 @@ def test_connection():
             _session_state['last_activity'] = time.time()
             _session_state['timed_out'] = False
 
-        auth_info = "Windows Trusted Connection" if auth_type == 'windows' else "SQL Server Authentication"
+        # Info message
+        auth_msg = "Windows Auth"
+        if ui_username or CONFIG.get('auth_type') == 'sql':
+            masked_user = ui_username or CONFIG.get('username', '??')
+            auth_msg = f"SQL Auth ({masked_user})"
+
         return safe_jsonify({
             "status": "success",
             "message": f"Successfully connected to {database} on {server}",
-            "info": f"Authenticated via {auth_info}"
+            "info": f"Authenticated via {auth_msg}"
         })
 
     except pyodbc.Error as ex:
-        sqlstate = ex.args[0] if ex.args else 'UNKNOWN'
+        # Pass through the actual SQL Error
         error_msg = str(ex)
-
-        detailed_reason = "An unexpected error occurred during connection."
+        return safe_jsonify({"status": "error", "message": error_msg}, 500)
+    except Exception as ex:
+        return safe_jsonify({"status": "error", "message": f"Unexpected error: {str(ex)}"}, 500)
 
         if '08001' in str(ex) or '08001' in str(sqlstate):
             detailed_reason = (

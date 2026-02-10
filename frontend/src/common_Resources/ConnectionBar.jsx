@@ -7,7 +7,7 @@ const ConnectionBar = ({ connection, onConnected, onDisconnected }) => {
     const { log } = useConsole();
     const [config, setConfig] = useState({ environments: [], auth_type: 'windows' });
     const [selectedEnv, setSelectedEnv] = useState('');
-    const [selectedServer, setSelectedServer] = useState('');
+    const [selectedServerLabel, setSelectedServerLabel] = useState('');
     const [selectedDB, setSelectedDB] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -59,34 +59,42 @@ const ConnectionBar = ({ connection, onConnected, onDisconnected }) => {
 
     const activeEnv = config.environments?.find(e => e.env_name === selectedEnv);
     const serverList = activeEnv ? activeEnv.instances : [];
-    const activeServer = serverList.find(s => s.host === selectedServer);
+    const activeServer = serverList.find(s => s.server_label === selectedServerLabel);
     const dbList = activeServer ? activeServer.databases : [];
     const serverPort = activeServer ? activeServer.port : null;
 
-    const authType = config.auth_type || 'windows';
-    const isSqlAuth = authType === 'sql';
+    // Detect Auth Type: Global default OR Instance override
+    const globalAuthType = config.auth_type || 'windows';
+    const instanceHasCreds = activeServer && (activeServer.username !== undefined || activeServer.password !== undefined);
+    const isSqlAuth = instanceHasCreds ? true : (globalAuthType === 'sql');
+
+    // DO NOT Auto-fill. Just clear fields when switching servers/environments so user must enter them.
+    useEffect(() => {
+        setUsername('');
+        setPassword('');
+    }, [selectedServerLabel, selectedEnv]);
 
     const handleConnect = async () => {
-        if (!selectedServer || !selectedDB) return;
+        if (!activeServer || !selectedDB) return;
         setLoading(true);
-        log(`Connecting to ${selectedServer} / ${selectedDB} ...`, 'info');
+        log(`Connecting to ${activeServer.host} / ${selectedDB} ...`, 'info');
 
         try {
             const payload = {
-                server: selectedServer,
+                server: activeServer.host,
                 database: selectedDB,
                 port: serverPort,
             };
-            if (isSqlAuth) {
+            if (username || password || isSqlAuth) {
                 payload.username = username;
                 payload.password = password;
             }
             const res = await axios.post('/api/connect', payload);
-            log(`Connected to ${selectedServer} / ${selectedDB} — ${res.data.message}`, 'success');
+            log(`Connected to ${activeServer.host} / ${selectedDB} — ${res.data.message}`, 'success');
             log(`Auth: ${res.data.info}`, 'system');
             log('Proceed to SQL Query tab to begin.', 'system');
             onConnected({
-                server: selectedServer,
+                server: activeServer.host,
                 database: selectedDB,
                 env: selectedEnv,
                 port: serverPort,
@@ -106,7 +114,7 @@ const ConnectionBar = ({ connection, onConnected, onDisconnected }) => {
         }
         onDisconnected();
         setSelectedEnv('');
-        setSelectedServer('');
+        setSelectedServerLabel('');
         setSelectedDB('');
         setUsername('');
         setPassword('');
@@ -127,7 +135,7 @@ const ConnectionBar = ({ connection, onConnected, onDisconnected }) => {
                     <select
                         className="bg-brand-900/80 text-gray-200 text-xs px-2 py-1.5 rounded border border-brand-700/40 focus:border-brand-500 outline-none"
                         value={selectedEnv}
-                        onChange={e => { setSelectedEnv(e.target.value); setSelectedServer(''); setSelectedDB(''); }}
+                        onChange={e => { setSelectedEnv(e.target.value); setSelectedServerLabel(''); setSelectedDB(''); }}
                     >
                         <option value="">Environment</option>
                         {(config.environments || []).map(env => (
@@ -138,13 +146,13 @@ const ConnectionBar = ({ connection, onConnected, onDisconnected }) => {
                     {/* Server */}
                     <select
                         className="bg-brand-900/80 text-gray-200 text-xs px-2 py-1.5 rounded border border-brand-700/40 focus:border-brand-500 outline-none disabled:opacity-40"
-                        value={selectedServer}
-                        onChange={e => { setSelectedServer(e.target.value); setSelectedDB(''); }}
+                        value={selectedServerLabel}
+                        onChange={e => { setSelectedServerLabel(e.target.value); setSelectedDB(''); }}
                         disabled={!selectedEnv}
                     >
                         <option value="">Server</option>
                         {serverList.map(srv => (
-                            <option key={srv.host} value={srv.host}>{srv.server_label}</option>
+                            <option key={srv.server_label} value={srv.server_label}>{srv.server_label}</option>
                         ))}
                     </select>
 
@@ -153,13 +161,14 @@ const ConnectionBar = ({ connection, onConnected, onDisconnected }) => {
                         className="bg-brand-900/80 text-gray-200 text-xs px-2 py-1.5 rounded border border-brand-700/40 focus:border-brand-500 outline-none disabled:opacity-40"
                         value={selectedDB}
                         onChange={e => setSelectedDB(e.target.value)}
-                        disabled={!selectedServer}
+                        disabled={!selectedServerLabel}
                     >
                         <option value="">Database</option>
                         {dbList.map(db => (
                             <option key={db} value={db}>{db}</option>
                         ))}
                     </select>
+
 
                     {/* Username/Password — only for SQL Auth */}
                     {isSqlAuth && (

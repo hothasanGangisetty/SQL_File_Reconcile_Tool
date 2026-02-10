@@ -11,13 +11,15 @@
         {
           "server_label": "QA1_Payments_Server",
           "host": "localhost\\SQLEXPRESS",
-          "port": 1433,
+          "username": "reader",
+          "password": "reader",
           "databases": ["PayDB", "RiskDB", "ReconcileLab"]
         },
         {
           "server_label": "QA1_User_Server",
           "host": "localhost\\SQLEXPRESS",
-          "port": 1433,
+          "username": "reader",
+          "password": "reader",
           "databases": ["UserMaster", "AuthDB"]
         }
       ]
