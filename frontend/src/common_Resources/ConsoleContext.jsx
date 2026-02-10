@@ -30,14 +30,16 @@ export const ConsoleProvider = ({ children }) => {
 
     const logTable = useCallback((columns, rows, maxRows = 15, opts = {}) => {
         idRef.current += 1;
-        const displayRows = rows.slice(0, maxRows);
-        const total = opts.totalRows || rows.length;
+        const safeRows = rows || [];
+        const safeCols = columns || [];
+        const displayRows = safeRows.slice(0, maxRows);
+        const total = opts.totalRows || safeRows.length;
         const hasEllipsis = total > displayRows.length;
-        const lastRow = hasEllipsis ? (opts.lastRow || (rows.length > maxRows ? rows[rows.length - 1] : null)) : null;
+        const lastRow = hasEllipsis ? (opts.lastRow || (safeRows.length > maxRows ? safeRows[safeRows.length - 1] : null)) : null;
         setLogs(prev => [...prev, {
             id: idRef.current,
             time: getTimestamp(),
-            message: { columns, rows: displayRows, total, shown: displayRows.length, hasEllipsis, lastRow },
+            message: { columns: safeCols, rows: displayRows, total, shown: displayRows.length, hasEllipsis, lastRow },
             type: 'table',
         }]);
     }, []);

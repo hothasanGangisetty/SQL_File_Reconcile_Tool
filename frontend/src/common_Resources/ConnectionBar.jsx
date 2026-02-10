@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useConsole } from '../context/ConsoleContext';
+import { useConsole } from './ConsoleContext';
 import { Plug, Unplug } from 'lucide-react';
 
 const ConnectionBar = ({ connection, onConnected, onDisconnected }) => {

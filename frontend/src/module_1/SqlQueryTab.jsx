@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useConsole } from '../context/ConsoleContext';
+import { useConsole } from '../common_Resources/ConsoleContext';
 import { Play, Database } from 'lucide-react';
 
 const SqlQueryTab = ({ connection, sqlState, setSqlState, onNext }) => {
@@ -21,11 +21,11 @@ const SqlQueryTab = ({ connection, sqlState, setSqlState, onNext }) => {
             });
 
             const { columns, preview_data, row_count_estimate } = res.data;
-            setSqlState(prev => ({ ...prev, columns, rows: preview_data, count: row_count_estimate, executed: true }));
+            setSqlState(prev => ({ ...prev, columns: columns || [], rows: preview_data || [], count: row_count_estimate || 0, executed: true }));
 
             log(`Query executed successfully — ${row_count_estimate} rows fetched`, 'success');
-            log(`Columns: ${columns.join(', ')}`, 'info');
-            logTable(columns, preview_data, 5, { lastRow: res.data.last_row, totalRows: row_count_estimate });
+            log(`Columns: ${(columns || []).join(', ')}`, 'info');
+            logTable(columns || [], preview_data || [], 5, { lastRow: res.data.last_row, totalRows: row_count_estimate });
             log('→ Click Next to proceed to File Upload', 'system');
 
         } catch (err) {

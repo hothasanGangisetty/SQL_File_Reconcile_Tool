@@ -7,7 +7,7 @@
           "server_label": "QA1_Payments_Server",
           "host": "localhost\\SQLEXPRESS",
           "default_port": 1433,
-          "databases": ["PayDB", "RiskDB"]
+          "databases": ["PayDB", "RiskDB", "ReconcileLab"]
         },
         {
           "server_label": "QA1_User_Server",

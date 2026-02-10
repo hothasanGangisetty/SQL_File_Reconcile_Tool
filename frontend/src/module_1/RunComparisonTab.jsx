@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useConsole } from '../context/ConsoleContext';
+import { useConsole } from '../common_Resources/ConsoleContext';
 import {
     Play, Download, RotateCcw, ChevronDown, ChevronUp,
     AlertTriangle, MinusCircle, PlusCircle, CheckCircle2
@@ -24,7 +24,7 @@ const RunComparisonTab = ({ connection, sqlState, fileState, mappingState, onRes
         setLoading(true);
         log('───── Running Comparison ─────', 'header');
         log(`Mapped columns: ${mappedPairs.length}`, 'info');
-        log(`Key columns: ${mappingState.keys.length > 0 ? mappingState.keys.join(', ') : 'None (sequential)'}`, 'info');
+        log(`Key columns: ${mappingState.keys.length > 0 ? mappingState.keys.join(', ') : 'None (Smart Fingerprint)'}`, 'info');
 
         try {
             const column_mapping = mappedPairs.map(([sqlCol, fileCol]) => ({ sql: sqlCol, file: fileCol }));

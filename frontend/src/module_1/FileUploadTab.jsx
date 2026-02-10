@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import { useConsole } from '../context/ConsoleContext';
+import { useConsole } from '../common_Resources/ConsoleContext';
 import { Upload, FileText, CheckCircle2, X } from 'lucide-react';
 
 const FileUploadTab = ({ fileState, setFileState, onNext }) => {
@@ -29,12 +29,12 @@ const FileUploadTab = ({ fileState, setFileState, onNext }) => {
             });
 
             const { file_id, columns, preview_data, total_rows } = res.data;
-            setFileState({ fileId: file_id, fileName: file.name, columns, rows: preview_data, count: total_rows, uploaded: true });
+            setFileState({ fileId: file_id, fileName: file.name, columns: columns || [], rows: preview_data || [], count: total_rows || 0, uploaded: true });
 
             log(`File uploaded successfully: ${file.name}`, 'success');
-            log(`${total_rows} rows, ${columns.length} columns detected`, 'success');
-            log(`Columns: ${columns.join(', ')}`, 'info');
-            logTable(columns, preview_data, 10);
+            log(`${total_rows} rows, ${(columns || []).length} columns detected`, 'success');
+            log(`Columns: ${(columns || []).join(', ')}`, 'info');
+            logTable(columns || [], preview_data || [], 10);
             log('→ Click Next to proceed to Keys Mapping', 'system');
 
         } catch (err) {
@@ -118,7 +118,7 @@ const FileUploadTab = ({ fileState, setFileState, onNext }) => {
                         </button>
                     </div>
                     <div className="text-xs text-gray-500">
-                        <strong>Columns:</strong> {fileState.columns.join(', ')}
+                        <strong>Columns:</strong> {(fileState.columns || []).join(', ')}
                     </div>
                 </div>
             )}

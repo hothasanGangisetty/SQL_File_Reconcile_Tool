@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ConsoleProvider, useConsole } from './context/ConsoleContext';
-import Sidebar from './components/Sidebar';
-import ConnectionBar from './components/ConnectionBar';
-import ConsolePanel from './components/ConsolePanel';
-import SqlQueryTab from './components/SqlQueryTab';
-import FileUploadTab from './components/FileUploadTab';
-import KeysMappingTab from './components/KeysMappingTab';
-import RunComparisonTab from './components/RunComparisonTab';
+import { ConsoleProvider, useConsole } from './common_Resources/ConsoleContext';
+import Sidebar from './common_Resources/Sidebar';
+import ConnectionBar from './common_Resources/ConnectionBar';
+import ConsolePanel from './common_Resources/ConsolePanel';
+import SqlQueryTab from './module_1/SqlQueryTab';
+import FileUploadTab from './module_1/FileUploadTab';
+import KeysMappingTab from './module_1/KeysMappingTab';
+import RunComparisonTab from './module_1/RunComparisonTab';
+import SqlToSqlPlaceholder from './module_2/Placeholder';
+import FileToFilePlaceholder from './module_3/Placeholder';
 
 const TABS = [
     { id: 'sql-query',      label: 'SQL Query' },
@@ -108,6 +110,11 @@ const AppInner = () => {
 
     // ── Render active tab content ──
     const renderTab = () => {
+        // Module 2 & 3 placeholders (no connection required)
+        if (activeModule === 'sql-to-sql') return <SqlToSqlPlaceholder />;
+        if (activeModule === 'file-to-file') return <FileToFilePlaceholder />;
+
+        // Module 1: SQL-to-File
         if (!connection) {
             return (
                 <div className="h-full flex items-center justify-center text-gray-400 text-sm">

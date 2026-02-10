@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useConsole } from '../context/ConsoleContext';
+import { useConsole } from '../common_Resources/ConsoleContext';
 import { ArrowRight, Key, Check, AlertTriangle, ArrowLeftRight } from 'lucide-react';
 
 const KeysMappingTab = ({ sqlState, fileState, mappingState, setMappingState, onNext }) => {
@@ -56,7 +56,7 @@ const KeysMappingTab = ({ sqlState, fileState, mappingState, setMappingState, on
         log(`───── Mapping Summary ─────`, 'header');
         log(`${mappedPairs.length} columns mapped, ${unmappedCount} skipped`, 'info');
         if (selectedKeys.length > 0) {
-            log(`Key columns: ${selectedKeys.join(', ')}`, 'success');
+            log(`Key columns: ${(selectedKeys || []).join(', ')}`, 'success');
         } else {
             log('No keys selected → sequential row-by-row comparison', 'warn');
         }

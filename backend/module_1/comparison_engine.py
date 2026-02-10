@@ -1,3 +1,8 @@
+"""
+Module 1: Smart Fingerprint Comparison Engine
+Key-based + hash-based order-independent comparison for SQL-to-File reconciliation.
+"""
+
 import pandas as pd
 import numpy as np
 import re
@@ -220,7 +225,7 @@ def _smart_no_key_comparison(df_sql, df_file, common_cols):
           f"unmatched in {time.time()-t1:.2f}s")
 
     # ---- Step 3: similarity-based pairing ----
-    paired = []                     # list of (sql_idx, file_idx)
+    paired = []
     pairing_skipped = False
 
     if (len(sql_unmatched_idxs) > 0 and len(file_unmatched_idxs) > 0):
@@ -228,14 +233,14 @@ def _smart_no_key_comparison(df_sql, df_file, common_cols):
                 and len(file_unmatched_idxs) <= MAX_PAIR_SIZE):
             t2 = time.time()
 
-            sql_vals  = sql_norm.loc[sql_unmatched_idxs].values    # shape (u_sql , n_cols)
-            file_vals = file_norm.loc[file_unmatched_idxs].values  # shape (u_file, n_cols)
+            sql_vals  = sql_norm.loc[sql_unmatched_idxs].values
+            file_vals = file_norm.loc[file_unmatched_idxs].values
 
             # Vectorised similarity matrix: sim[i][j] = matching-column count
             similarity = np.zeros((len(sql_vals), len(file_vals)), dtype=np.int32)
             for c in range(n_cols):
-                sql_col  = sql_vals[:, c].reshape(-1, 1)     # (u_sql, 1)
-                file_col = file_vals[:, c].reshape(1, -1)    # (1, u_file)
+                sql_col  = sql_vals[:, c].reshape(-1, 1)
+                file_col = file_vals[:, c].reshape(1, -1)
                 similarity += (sql_col == file_col).astype(np.int32)
 
             # Minimum threshold: at least 30 % of columns must match (min 1)

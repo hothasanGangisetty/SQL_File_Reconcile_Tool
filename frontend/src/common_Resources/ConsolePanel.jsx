@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { useConsole } from '../context/ConsoleContext';
+import { useConsole } from './ConsoleContext';
 import { Trash2 } from 'lucide-react';
 
 const ConsolePanel = () => {
