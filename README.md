@@ -368,12 +368,4 @@ See `README_v1.md` and `README_v2.md` for previous versions.
 
 ---
 
-## License
 
-This project is for internal use.
-
----
-
-## Support
-
-For issues or questions, contact the development team.
