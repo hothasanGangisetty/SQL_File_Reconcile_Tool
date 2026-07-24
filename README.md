@@ -367,5 +367,8 @@ Tested with 20 columns per row.
 See `README_v1.md` and `README_v2.md` for previous versions.
 
 ---
+Hi [Mentor's Name]! It's been a bit since we spoke - hope you've been doing well :)
 
+Just wanted to reconnect and share an update - I joined BNP Paribas full-time and I'm currently in [current team]. I'm looking around for the right fit within the org, and really enjoyed working with you during the hackathon, so wanted to ask - any vacancies open in your team right now?
 
+Thanks again for all the feedback back then, it really helped!
